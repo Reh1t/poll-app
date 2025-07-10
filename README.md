@@ -2,7 +2,7 @@
 
 A responsive, real-time polling application built with **React + TypeScript** and **Supabase**. Inspired by Strawpoll and Mentimeter, users can create polls, vote (with or without authentication), and view live animated results.
 
-Live at ![Vercel ](https://poll-app-nine-umber.vercel.app/)
+Live at [Vercel](https://poll-app-nine-umber.vercel.app/)
 
 ---
 
