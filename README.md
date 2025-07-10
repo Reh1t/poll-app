@@ -120,7 +120,7 @@ src/
 ### State & Performance
 
 * Debounced search (500ms delay)
-* Pagination (10 per page on list, 4 per page in results)
+* Pagination (10 per page on list, 3 per page in profile)
 * Skeleton loaders used while loading
 * Efficient use of Supabase range queries and conditional filters
 
