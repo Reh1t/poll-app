@@ -51,7 +51,7 @@ const PollCard = ({ poll }: { poll: Poll }) => {
 
   return (
     <>
-      <div className="border rounded-lg shadow-sm bg-white hover:shadow-md transition p-4">
+      <div className="border rounded-lg shadow-sm bg-white hover:shadow-md transition p-4 dark:bg-background-dark dark:border-gray-700 dark:text-gray-200">
         {/* Top: Creator Info + Share */}
         <div className="flex justify-between items-start mb-3">
           <div className="flex items-center gap-3">
@@ -64,10 +64,10 @@ const PollCard = ({ poll }: { poll: Poll }) => {
               className="w-8 h-8 rounded-full object-cover border"
             />
             <div>
-              <p className="text-sm font-medium text-gray-800">
+              <p className="text-sm font-medium text-gray-800 dark:text-gray-200">
                 {creator?.full_name || "Unknown"}
               </p>
-              <p className="text-xs text-gray-500">
+              <p className="text-xs text-gray-500 dark:text-gray-200">
                 {formatDistanceToNow(new Date(poll.created_at), {
                   addSuffix: true,
                 })}
@@ -77,7 +77,7 @@ const PollCard = ({ poll }: { poll: Poll }) => {
 
           <button
             onClick={handleCopyLinkAndShowQR}
-            className="text-sm text-blue-600 hover:underline"
+            className="text-sm font-medium text-white hover:underline bg-blue-600 p-2 rounded-md dark:bg-blue-500"
           >
             Share
           </button>
@@ -85,10 +85,10 @@ const PollCard = ({ poll }: { poll: Poll }) => {
 
         {/* Question + Options + Deadline */}
         <Link to={`/poll/${poll.id}`} className="block">
-          <h3 className="text-md font-semibold text-gray-900 line-clamp-2">
+          <h3 className="text-md font-semibold text-gray-900 line-clamp-2 dark:text-gray-200">
             {poll.question}
           </h3>
-          <p className="text-sm text-gray-500 mt-1">
+          <p className="text-sm text-gray-500 mt-1 dark:text-gray-200">
             {poll.options.length} option{poll.options.length !== 1 && "s"} •{" "}
             {poll.ends_at
               ? `Ends ${new Date(poll.ends_at).toLocaleString()}`
@@ -97,10 +97,10 @@ const PollCard = ({ poll }: { poll: Poll }) => {
         </Link>
 
         {/* Footer: Vote Count */}
-        <div className="mt-4 flex justify-between text-sm text-gray-600">
+        <div className="mt-4 flex justify-between text-sm text-gray-600 dark:text-gray-200">
           <div className="flex items-center gap-1">
             <svg
-              className="w-4 h-4 text-gray-400"
+              className="w-4 h-4 text-gray-400 dark:text-gray-200"
               fill="none"
               stroke="currentColor"
               strokeWidth={2}
@@ -122,14 +122,14 @@ const PollCard = ({ poll }: { poll: Poll }) => {
       {/* QR Code Modal */}
       {showQR && (
         <div className="fixed inset-0 z-50 bg-black bg-opacity-40 flex items-center justify-center">
-          <div className="bg-white p-6 rounded-lg shadow-lg text-center relative w-72">
+          <div className="bg-white p-6 rounded-lg shadow-lg text-center relative w-72 dark:bg-background-dark">
             <button
               onClick={() => setShowQR(false)}
-              className="absolute top-2 right-2 text-gray-500 hover:text-gray-800"
+              className="absolute top-2 right-2 text-gray-500 hover:text-gray-800 dark:text-gray-200"
             >
               ✕
             </button>
-            <h2 className="text-lg font-semibold mb-3">Scan to Vote</h2>
+            <h2 className="text-lg font-semibold mb-3 dark:text-gray-200">Scan to Vote</h2>
             <div className="flex justify-center items-center">
             <QRCodeCanvas
               value={pollUrl}
@@ -139,7 +139,7 @@ const PollCard = ({ poll }: { poll: Poll }) => {
               level="H"
             />
             </div>
-            <p className="mt-3 text-xs text-gray-500 break-words">{pollUrl}</p>
+            <p className="mt-3 text-xs text-gray-500 break-words dark:text-gray-200">{pollUrl}</p>
           </div>
         </div>
       )}

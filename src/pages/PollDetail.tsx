@@ -34,38 +34,43 @@ const PollDetail = () => {
   const pollUrl = `${window.location.origin}/poll/${pollId}`;
 
   useEffect(() => {
-    const fetchPoll = async () => {
+    const fetchPollAndVote = async () => {
       try {
-        const [{ data: pollData }, { data: user }] = await Promise.all([
-          supabase.from("polls").select("*").eq("id", pollId).single(),
-          supabase.auth.getUser(),
-        ]);
-
-        setPoll(pollData);
-        const uid = user?.user?.id || null;
+        const { data: userData } = await supabase.auth.getUser();
+        const uid = userData?.user?.id || null;
         setUserId(uid);
 
-        if (uid) {
-          const { data: existingVote } = await supabase
-            .from("votes")
-            .select("id")
-            .eq("poll_id", pollId)
-            .eq("user_id", uid)
-            .maybeSingle();
+        const { data: pollWithVote, error } = await supabase
+          .from("polls")
+          .select(
+            `id, question, options, created_by, settings, ends_at,
+             votes!poll_id(user_id)`
+          )
+          .eq("id", pollId)
+          .maybeSingle();
 
-          if (existingVote) setHasVoted(true);
+        if (error || !pollWithVote) {
+          throw error || new Error("Poll not found");
+        }
+
+        const { votes, ...pollData } = pollWithVote;
+        setPoll(pollData);
+
+        if (uid) {
+          const voted = votes?.some((v: any) => v.user_id === uid);
+          setHasVoted(voted);
         } else {
           setHasVoted(localStorage.getItem(voteKey) === "true");
         }
       } catch (err) {
-        toast.error("Failed to load poll.");
         console.error(err);
+        toast.error("Failed to load poll.");
       } finally {
         setLoading(false);
       }
     };
 
-    fetchPoll();
+    fetchPollAndVote();
   }, [pollId, voteKey]);
 
   useEffect(() => {
@@ -152,7 +157,7 @@ const PollDetail = () => {
   // 🔄 Skeleton UI while loading
   if (loading) {
     return (
-      <div className="max-w-2xl mx-auto p-4 animate-pulse space-y-4">
+      <div className="min-h-screen max-w-2xl mx-auto p-4 animate-pulse space-y-4 bg-background-light dark:bg-background-dark dark:text-gray-200">
         <div className="h-6 bg-gray-300 rounded w-2/3"></div>
         <div className="h-4 bg-gray-300 rounded w-1/3 mb-2"></div>
         {[...Array(4)].map((_, i) => (
@@ -197,7 +202,7 @@ const PollDetail = () => {
             </button>
             <h2 className="text-lg font-semibold mb-3">Scan to Vote</h2>
             <div className="flex justify-center items-center">
-            <QRCodeCanvas value={pollUrl} size={180}  />
+              <QRCodeCanvas value={pollUrl} size={180} />
             </div>
             <p className="mt-3 text-xs text-gray-500 break-words">{pollUrl}</p>
           </div>

@@ -31,29 +31,25 @@ const PollResultPage = () => {
   const [user, setUser] = useState<any>(null);
   const chartRef = useRef<HTMLDivElement>(null);
 
-  const fetchPollAndUser = useCallback(async () => {
+  const fetchAllData = useCallback(async () => {
     setLoading(true);
-    const [{ data: pollData }, { data: authData }] = await Promise.all([
-      supabase.from("polls").select("*").eq("id", pollId).single(),
-      supabase.auth.getUser(),
-    ]);
+
+    const [{ data: pollData }, { data: authData }, { data: votesData }] =
+      await Promise.all([
+        supabase.from("polls").select("*").eq("id", pollId).single(),
+        supabase.auth.getUser(),
+        supabase.from("votes").select("selected_options").eq("poll_id", pollId),
+      ]);
+
     setPoll(pollData);
     setUser(authData?.user ?? null);
+    setVotes(votesData || []);
     setLoading(false);
   }, [pollId]);
 
-  const fetchVotes = useCallback(async () => {
-    const { data } = await supabase
-      .from("votes")
-      .select("selected_options")
-      .eq("poll_id", pollId);
-    setVotes(data || []);
-  }, [pollId]);
-
   useEffect(() => {
-    fetchPollAndUser();
-    fetchVotes();
-  }, [fetchPollAndUser, fetchVotes]);
+    fetchAllData();
+  }, [fetchAllData]);
 
   useEffect(() => {
     if (!pollId) return;
@@ -67,14 +63,14 @@ const PollResultPage = () => {
           table: "votes",
           filter: `poll_id=eq.${pollId}`,
         },
-        fetchVotes
+        fetchAllData
       )
       .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [pollId, fetchVotes]);
+  }, [pollId, fetchAllData]);
 
   useEffect(() => {
     if (!poll) return;
@@ -152,7 +148,7 @@ const PollResultPage = () => {
 
   if (loading) {
     return (
-      <div className="max-w-2xl mx-auto p-4 space-y-6 animate-pulse">
+      <div className="min-h-screen max-w-2xl mx-auto p-4 space-y-6 animate-pulse bg-background-light dark:bg-background-dark dark:text-gray-200">
         <div className="h-6 w-3/4 bg-gray-300 rounded" />
         <div className="h-4 w-1/3 bg-gray-200 rounded" />
         <div className="flex justify-center gap-2">
@@ -174,22 +170,23 @@ const PollResultPage = () => {
   if (!poll) return <div className="p-4 text-red-500">Poll not found</div>;
 
   return (
-    <div className="max-w-2xl mx-auto p-4">
+    <div className="min-h-screen max-w-2xl mx-auto p-4 bg-background-light dark:bg-background-dark dark:text-gray-200">
       <h1 className="text-2xl font-semibold mb-4">{poll.question}</h1>
 
-      <div className="text-sm text-gray-500 mb-2">
+      <div className="text-sm text-gray-700 mb-2 dark:text-gray-200">
         👀 {viewersCount} {viewersCount === 1 ? "person is" : "people are"}{" "}
         viewing this poll
       </div>
 
-      {/* View Mode Toggle */}
       <div className="flex justify-center mb-4 gap-2">
         {["bar", "pie", "list"].map((mode) => (
           <button
             key={mode}
             onClick={() => setViewMode(mode as typeof viewMode)}
             className={`px-3 py-1 rounded text-sm ${
-              viewMode === mode ? "bg-blue-600 text-white" : "bg-gray-200"
+              viewMode === mode
+                ? "bg-blue-600 text-white"
+                : "bg-gray-200 dark:bg-gray-700 dark:text-gray-200"
             }`}
           >
             {mode.charAt(0).toUpperCase() + mode.slice(1)}
@@ -211,7 +208,7 @@ const PollResultPage = () => {
             ];
             return (
               <div key={idx}>
-                <div className="flex justify-between text-sm text-gray-700 mb-1">
+                <div className="flex justify-between text-sm text-gray-700 mb-1 dark:text-gray-200">
                   <span>{name}</span>
                   <motion.span
                     key={value}
@@ -289,10 +286,9 @@ const PollResultPage = () => {
         {totalVotes} total vote{totalVotes !== 1 && "s"}
       </div>
 
-      {/* Controls */}
       <div className="flex justify-center gap-4 mt-6">
         <button
-          onClick={fetchVotes}
+          onClick={fetchAllData}
           className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-sm rounded"
         >
           Refresh Results
