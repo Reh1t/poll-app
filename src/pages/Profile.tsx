@@ -170,10 +170,46 @@ const Profile = () => {
     link.click();
   };
 
-  const handleDelete = async (id: string) => {
-    if (!window.confirm("Are you sure you want to delete this poll?")) return;
-    const { error } = await supabase.from("polls").delete().eq("id", id);
-    if (!error) setPolls((prev) => prev.filter((p) => p.id !== id));
+  const handleDelete = (id: string) => {
+    toast.custom((t) => (
+      <div className="bg-white p-4 rounded shadow-lg border border-gray-200 flex flex-col md:flex-row md:items-center gap-4">
+        <span className="text-sm font-medium text-gray-800">
+          Are you sure you want to delete this poll?
+        </span>
+        <div className="flex justify-end gap-2 ml-auto">
+          <button
+            className="px-3 py-1 text-sm bg-gray-100 hover:bg-gray-200 text-gray-800 rounded"
+            onClick={() => toast.dismiss(t.id)}
+          >
+            Cancel
+          </button>
+          <button
+            className="px-3 py-1 text-sm bg-red-600 hover:bg-red-700 text-white rounded"
+            onClick={() => {
+              const toastId = t.id;
+              toast.dismiss(toastId);
+
+              (async () => {
+                const loadingId = toast.loading("Deleting poll...");
+                const { error } = await supabase
+                  .from("polls")
+                  .delete()
+                  .eq("id", id); // Only deletes from polls — votes are now auto-deleted
+
+                if (error) {
+                  toast.error("Failed to delete poll", { id: loadingId });
+                } else {
+                  setPolls((prev) => prev.filter((p) => p.id !== id));
+                  toast.success("Poll deleted", { id: loadingId });
+                }
+              })();
+            }}
+          >
+            Delete
+          </button>
+        </div>
+      </div>
+    ));
   };
 
   const activityData = useMemo(() => {
@@ -399,7 +435,10 @@ const Profile = () => {
                     whileHover={{ scale: 1.01 }}
                   >
                     <div className="flex flex-col md:flex-row md:justify-between md:items-center">
-                      <div className="mb-2 md:mb-0">
+                      <div
+                        className="mb-2 md:mb-0 cursor-pointer"
+                        onClick={() => navigate(`/poll/${poll.id}`)}
+                      >
                         <h3 className="text-md font-medium">{poll.question}</h3>
                         <p className="text-sm text-gray-500">
                           Created: {format(new Date(poll.created_at), "PPP")} |{" "}
