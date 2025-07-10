@@ -120,7 +120,7 @@ const PollList = () => {
   }, [page, search, filter]);
 
   return (
-    <div className="max-w-3xl mx-auto p-4">
+    <div className="max-w-3xl mx-auto p-4 bg-background-light dark:bg-background-dark">
       <h1 className="text-2xl font-bold mb-4">Public Polls</h1>
 
       {/* Search & Filter UI */}

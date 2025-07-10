@@ -1,12 +1,16 @@
 import { Link, useLocation } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { supabase } from "../app/supabase";
+import { useContext } from "react";
+import ThemeContext from "../context/ThemeContext";
+import { FiMoon, FiSun } from "react-icons/fi";
 
 const Navbar = () => {
   const [user, setUser] = useState<any>(null);
   const [profile, setProfile] = useState<{ avatar_url?: string } | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const location = useLocation();
+  const { theme, toggle } = useContext(ThemeContext);
 
   useEffect(() => {
     const fetchUserAndProfile = async () => {
@@ -73,7 +77,7 @@ const Navbar = () => {
   const userInitial = user?.email?.[0]?.toUpperCase() || "U";
 
   return (
-    <nav className="bg-white shadow-sm border-b px-4 py-3">
+    <nav className="bg-white dark:bg-gray-800 shadow-sm border-b px-4 py-3">
       <div className="max-w-screen-xl mx-auto flex items-center justify-between relative z-50">
         {/* Left: Brand & Menu */}
         <div className="flex items-center justify-between w-full sm:w-1/3">
@@ -163,6 +167,13 @@ const Navbar = () => {
             </Link>
           )}
         </div>
+        {/* <button
+          aria-label="Toggle dark mode"
+          onClick={toggle}
+          className="ml-4 text-gray-700 dark:text-gray-200"
+        >
+          {theme === "light" ? <FiMoon /> : <FiSun />}
+        </button> */}
       </div>
 
       {/* Mobile dropdown */}
