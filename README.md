@@ -2,7 +2,7 @@
 
 A responsive, real-time polling application built with **React + TypeScript** and **Supabase**. Inspired by Strawpoll and Mentimeter, users can create polls, vote (with or without authentication), and view live animated results.
 
-![screenshot](https://your-app-url.com/screenshot.png)
+Live at ![Vercel ](https://poll-app-nine-umber.vercel.app/)
 
 ---
 
@@ -36,7 +36,7 @@ A responsive, real-time polling application built with **React + TypeScript** an
 
 1. **Clone the repo**
 ```bash
-git clone https://github.com/your-username/realtime-poll-app.git
+git clone https://github.com/Reh1t/poll-app.git
 cd realtime-poll-app
 ``` 
 
