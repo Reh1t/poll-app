@@ -195,9 +195,9 @@ const PollList = () => {
 
       {/* Polls */}
       {loading ? (
-        <div className="space-y-3 animate-pulse ">
+        <div className="space-y-3 animate-pulse">
           {[...Array(4)].map((_, i) => (
-            <div key={i} className="h-16 bg-gray-200 rounded"></div>
+            <div key={i} className="h-16 bg-gray-200 dark:bg-gray-700 rounded"></div>
           ))}
         </div>
       ) : polls.length === 0 ? (
@@ -205,7 +205,7 @@ const PollList = () => {
           No polls found.
         </p>
       ) : (
-        <div className="space-y-4">
+        <div className="space-y-4 dark:bg-gray-800">
           {polls.map((poll) => (
             <PollCard key={poll.id} poll={poll} />
           ))}
