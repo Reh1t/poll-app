@@ -152,7 +152,7 @@ const PollList = () => {
       </h1>
 
       {/* Search & Filter UI */}
-      <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-6 ">
+      <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-6 justify-center ">
         <input
           type="text"
           placeholder="Search polls..."
@@ -164,22 +164,33 @@ const PollList = () => {
           className="border px-3 py-2 rounded w-full sm:w-auto dark:bg-gray-800 dark:text-gray-100"
         />
 
-        <select
-          value={filter}
-          onChange={(e) => {
-            setPage(1);
-            setFilter(e.target.value as any);
-          }}
-          className="border px-3 py-2 rounded dark:bg-gray-800 dark:text-gray-100"
-        >
-          <option value="all">All</option>
-          <option value="active">Active</option>
-          <option value="ended">Ended</option>
-          <option value="mine">My Polls</option>
-          <option value="oldest">Oldest First</option>
-          <option value="votes">Most Votes</option>
-          <option value="no_expiry">No Expiry</option>
-        </select>
+        <div className="flex flex-wrap gap-2 text-sm">
+          {[
+            { label: "All", value: "all" },
+            { label: "Active", value: "active" },
+            { label: "Ended", value: "ended" },
+            { label: "My Polls", value: "mine" },
+            { label: "Oldest", value: "oldest" },
+            { label: "Votes", value: "votes" },
+            { label: "No Expiry", value: "no_expiry" },
+          ].map(({ label, value }) => (
+            <button
+              key={value}
+              onClick={() => {
+                setPage(1);
+                setFilter(value as any);
+              }}
+              className={`px-3 py-1 rounded-full border text-sm transition-all
+        ${
+          filter === value
+            ? "bg-blue-600 text-white"
+            : "bg-gray-100 dark:bg-gray-700 dark:text-gray-200"
+        }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Polls */}
