@@ -169,7 +169,7 @@ const PollDetail = () => {
   if (!poll) return <div className="p-4">Poll not found</div>;
 
   return (
-    <div className="max-w-2xl mx-auto p-4">
+    <div className="min-h-screen max-w-2xl mx-auto p-4 bg-background-light dark:bg-background-dark dark:text-gray-200">
       <h1 className="text-2xl font-bold mb-2">{poll.question}</h1>
 
       <div className="flex justify-between items-center text-sm text-gray-500 mb-4">
@@ -207,7 +207,7 @@ const PollDetail = () => {
       {/* Voting Form */}
       <form
         onSubmit={onSubmit}
-        className="bg-white shadow-lg rounded-xl p-6 space-y-4 border border-gray-200"
+        className="bg-white shadow-lg rounded-xl p-6 space-y-4 border border-gray-200 dark:bg-background-dark dark:text-gray-200"
       >
         {isExpired && (
           <div className="text-sm text-red-600 bg-red-100 px-3 py-1 inline-block rounded mb-4">
@@ -228,7 +228,7 @@ const PollDetail = () => {
                 className="h-4 w-4 text-blue-600 border-gray-300 disabled:cursor-not-allowed"
               />
               <span
-                className={`text-gray-700 ${
+                className={`text-gray-700 dark:text-gray-200 ${
                   isExpired ? "text-opacity-50" : ""
                 }`}
               >

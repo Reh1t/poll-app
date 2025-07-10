@@ -81,7 +81,7 @@ const CreatePoll = () => {
   };
 
   return (
-    <div className="max-w-2xl mx-auto px-4 py-8 h-screen">
+    <div className="max-w-2xl mx-auto px-4 py-8 h-screen ">
       <div className="bg-white border rounded-xl shadow-md p-6 space-y-6 ring-2 ring-gray-100 dark:bg-background-dark dark:text-gray-200" >
         <h1 className="text-2xl font-bold text-center text-gray-800 dark:text-gray-200">
           Create a Poll
