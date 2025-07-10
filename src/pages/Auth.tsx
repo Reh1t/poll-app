@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { supabase } from "../app/supabase";
 import toast from "react-hot-toast";
@@ -11,6 +11,7 @@ type AuthFormData = {
 
 const Auth = () => {
   const [isLogin, setIsLogin] = useState(true);
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
   const navigate = useNavigate();
 
   const {
@@ -18,6 +19,24 @@ const Auth = () => {
     handleSubmit,
     formState: { errors, isSubmitting },
   } = useForm<AuthFormData>();
+
+  useEffect(() => {
+    const checkIfUserConfirmed = async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (user && !isLogin) {
+        // No profile creation here
+        setShowConfirmModal(false);
+        toast.success("Email confirmed! You're now logged in.");
+        navigate("/");
+      }
+    };
+
+    const interval = setInterval(checkIfUserConfirmed, 3000);
+    return () => clearInterval(interval);
+  }, [isLogin, navigate]);
 
   const onSubmit = async (data: AuthFormData) => {
     const { email, password } = data;
@@ -39,10 +58,8 @@ const Auth = () => {
           toast.success("Logged in successfully!", { id: "auth" });
           navigate("/");
         } else {
-          toast.success(
-            "Registration successful! Please check your email to confirm.",
-            { id: "auth" }
-          );
+          toast.dismiss("auth");
+          setShowConfirmModal(true);
         }
       }
     } catch (error: any) {
@@ -65,8 +82,15 @@ const Auth = () => {
             </label>
             <input
               type="email"
+              placeholder="you@example.com"
               className="w-full border rounded px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none dark:bg-background-dark"
-              {...register("email", { required: "Email is required" })}
+              {...register("email", {
+                required: "Email is required",
+                pattern: {
+                  value: /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/,
+                  message: "Invalid email format",
+                },
+              })}
             />
             {errors.email && (
               <p className="text-red-500 text-sm mt-1">
@@ -82,6 +106,7 @@ const Auth = () => {
             </label>
             <input
               type="password"
+              placeholder="••••••••"
               className="w-full border rounded px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none dark:bg-background-dark"
               {...register("password", { required: "Password is required" })}
             />
@@ -118,6 +143,24 @@ const Auth = () => {
           </button>
         </p>
       </div>
+
+      {/* Confirmation Modal */}
+      {showConfirmModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md text-center">
+            <h3 className="text-lg font-semibold mb-2 dark:text-white">
+              Confirm your email
+            </h3>
+            <p className="text-gray-700 dark:text-gray-300 mb-4">
+              We've sent a confirmation link to your email. Once confirmed,
+              this window will automatically close.
+            </p>
+            <p className="text-sm text-gray-400 dark:text-gray-400">
+              Waiting for confirmation...
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
