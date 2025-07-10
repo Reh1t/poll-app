@@ -11,39 +11,41 @@ import Navbar from "./components/Navbar";
 
 function App() {
   return (
-    <Router>
-      <Toaster
-        position="top-right"
-        toastOptions={{
-          className: "text-sm font-medium px-4 py-2",
-          success: { style: { background: "#4ade80", color: "#fff" } },
-          error: { style: { background: "#f87171", color: "#fff" } },
-        }}
-      />
-      <Navbar />
-      <Routes>
-        <Route path="/auth" element={<Auth />} />
-        <Route path="/" element={<PollList />} />
-        <Route path="/poll/:id" element={<PollDetail />} />
-        <Route path="/poll/:id/results" element={<PollResultPage />} />
-        <Route
-          path="/profile"
-          element={
-            <ProtectedRoute>
-              <Profile />
-            </ProtectedRoute>
-          }
+    <div className="bg-background-light dark:bg-background-dark">
+      <Router>
+        <Toaster
+          position="top-right"
+          toastOptions={{
+            className: "text-sm font-medium px-4 py-2",
+            success: { style: { background: "#4ade80", color: "#fff" } },
+            error: { style: { background: "#f87171", color: "#fff" } },
+          }}
         />
-        <Route
-          path="/create"
-          element={
-            <ProtectedRoute>
-              <CreatePoll />
-            </ProtectedRoute>
-          }
-        />
-      </Routes>
-    </Router>
+        <Navbar />
+        <Routes>
+          <Route path="/auth" element={<Auth />} />
+          <Route path="/" element={<PollList />} />
+          <Route path="/poll/:id" element={<PollDetail />} />
+          <Route path="/poll/:id/results" element={<PollResultPage />} />
+          <Route
+            path="/profile"
+            element={
+              <ProtectedRoute>
+                <Profile />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/create"
+            element={
+              <ProtectedRoute>
+                <CreatePoll />
+              </ProtectedRoute>
+            }
+          />
+        </Routes>
+      </Router>
+    </div>
   );
 }
 

@@ -130,7 +130,6 @@ src/
 
 * ❌ No password reset flow (can be added later)
 * ❌ No admin panel or user management UI
-* ❌ No dark mode (planned as a bonus)
 * ❌ LocalStorage can be bypassed (for anonymous users)
 * ❌ Viewer presence can show duplicates in incognito or multiple tabs
 * ❌ RLS is enforced for safety but needs careful config for voting logic

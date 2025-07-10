@@ -1,3 +1,4 @@
+
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../app/supabase";
@@ -38,9 +39,7 @@ interface ProfileData {
 
 const Profile = () => {
   const [user, setUser] = useState<ProfileData | null>(null);
-  const [editing, setEditing] = useState<{ field: string | null }>({
-    field: null,
-  });
+  const [editing, setEditing] = useState<{ field: string | null }>({ field: null });
   const [polls, setPolls] = useState<Poll[]>([]);
   const [loading, setLoading] = useState(true);
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
@@ -172,37 +171,33 @@ const Profile = () => {
 
   const handleDelete = (id: string) => {
     toast.custom((t) => (
-      <div className="bg-white p-4 rounded shadow-lg border border-gray-200 flex flex-col md:flex-row md:items-center gap-4">
-        <span className="text-sm font-medium text-gray-800">
+      <div className="bg-white dark:bg-gray-800 p-4 rounded shadow-lg border border-gray-200 dark:border-gray-700 flex flex-col md:flex-row md:items-center gap-4">
+        <span className="text-sm font-medium text-gray-800 dark:text-gray-100">
           Are you sure you want to delete this poll?
         </span>
         <div className="flex justify-end gap-2 ml-auto">
           <button
-            className="px-3 py-1 text-sm bg-gray-100 hover:bg-gray-200 text-gray-800 rounded"
+            className="px-3 py-1 text-sm bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-100 rounded"
             onClick={() => toast.dismiss(t.id)}
           >
             Cancel
           </button>
           <button
             className="px-3 py-1 text-sm bg-red-600 hover:bg-red-700 text-white rounded"
-            onClick={() => {
-              const toastId = t.id;
-              toast.dismiss(toastId);
+            onClick={async () => {
+              toast.dismiss(t.id);
+              const loadingId = toast.loading("Deleting poll...");
+              const { error } = await supabase
+                .from("polls")
+                .delete()
+                .eq("id", id);
 
-              (async () => {
-                const loadingId = toast.loading("Deleting poll...");
-                const { error } = await supabase
-                  .from("polls")
-                  .delete()
-                  .eq("id", id); // Only deletes from polls — votes are now auto-deleted
-
-                if (error) {
-                  toast.error("Failed to delete poll", { id: loadingId });
-                } else {
-                  setPolls((prev) => prev.filter((p) => p.id !== id));
-                  toast.success("Poll deleted", { id: loadingId });
-                }
-              })();
+              if (error) {
+                toast.error("Failed to delete poll", { id: loadingId });
+              } else {
+                setPolls((prev) => prev.filter((p) => p.id !== id));
+                toast.success("Poll deleted", { id: loadingId });
+              }
             }}
           >
             Delete
@@ -238,10 +233,10 @@ const Profile = () => {
   }, [filteredPolls, currentPage]);
 
   return (
-    <div className="p-4 min-h-screen bg-gray-100 text-gray-900">
+    <div className="p-4 min-h-screen bg-gray-100 text-gray-900 dark:bg-gray-900 dark:text-gray-100">
       <div className="max-w-5xl mx-auto grid md:grid-cols-3 gap-6">
         {/* Profile Card */}
-        <div className="bg-white p-6 rounded shadow md:col-span-1 flex flex-col items-center text-center">
+        <div className="bg-white p-6 rounded shadow md:col-span-1 flex flex-col items-center text-center dark:bg-gray-800 dark:border-gray-600 dark:text-gray-100">
           {loading ? (
             <div className="animate-pulse space-y-4 w-full">
               <div className="h-24 w-24 rounded-full bg-gray-300 mx-auto" />
@@ -300,17 +295,17 @@ const Profile = () => {
                   </>
                 )}
               </div>
-              <div className="w-full border border-gray-300 rounded-xl p-6 mt-8 shadow-sm bg-white">
+              <div className="w-full border border-gray-300 rounded-xl p-6 mt-8 shadow-sm bg-white dark:bg-gray-800 dark:border-gray-600 dark:text-gray-100">
                 {["full_name", "bio", "dob"].map((field, idx) => (
                   <div
                     key={field}
-                    className="w-full text-left pb-4 mb-4 border-b last:border-b-0 last:mb-0 last:pb-0 border-dashed border-gray-200"
+                    className="w-full text-left pb-4 mb-4 border-b last:border-b-0 last:mb-0 last:pb-0 border-dashed border-gray-200 dark:border-gray-600"
                   >
-                    <label className="text-gray-600 text-xs font-medium capitalize block mb-1">
+                    <label className="text-gray-600 text-xs font-medium capitalize block mb-1 dark:text-gray-100">
                       {field === "dob" ? "Age" : field.replace("_", " ")}
                     </label>
                     {editing.field === field ? (
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 ">
                         <input
                           type={field === "dob" ? "date" : "text"}
                           value={(user as any)[field] || ""}
@@ -328,7 +323,7 @@ const Profile = () => {
                       </div>
                     ) : (
                       <div className="flex justify-between items-center">
-                        <p className="text-sm text-gray-800">
+                        <p className="text-sm text-gray-800 dark:text-gray-100">
                           {field === "dob"
                             ? age
                               ? `${age} years old`
@@ -345,23 +340,23 @@ const Profile = () => {
                 ))}
 
                 {/* Metrics */}
-                <div className="mt-6 w-full divide-y divide-gray-200">
+                <div className="mt-6 w-full divide-y divide-gray-200 dark:divide-gray-600">
                   <div className="flex items-center justify-between py-2 text-sm">
-                    <div className="flex items-center gap-2 text-gray-500">
-                      <BiPoll className="text-blue-600" />
+                    <div className="flex items-center gap-2 text-gray-500 dark:text-gray-100">
+                      <BiPoll className="text-blue-600 dark:text-blue-400" />
                       <span>Polls</span>
                     </div>
-                    <span className="font-medium text-gray-800">
+                    <span className="font-medium text-gray-800 dark:text-gray-100">
                       {polls.length}
                     </span>
                   </div>
 
                   <div className="flex items-center justify-between py-2 text-sm">
-                    <div className="flex items-center gap-2 text-gray-500">
-                      <FaVoteYea className="text-green-600" />
+                    <div className="flex items-center gap-2 text-gray-500 dark:text-gray-100">
+                      <FaVoteYea className="text-green-600 dark:text-green-400" />
                       <span>Votes</span>
                     </div>
-                    <span className="font-medium text-gray-800">
+                    <span className="font-medium text-gray-800 dark:text-gray-100">
                       {polls.reduce((acc, p) => acc + p.options.length, 0)}
                     </span>
                   </div>
@@ -372,8 +367,8 @@ const Profile = () => {
         </div>
 
         {/* Right Section */}
-        <div className="md:col-span-2 space-y-6">
-          <div className="bg-white p-6 rounded shadow">
+        <div className="md:col-span-2 space-y-6 ">
+          <div className="bg-white p-6 rounded shadow dark:bg-gray-800 dark:text-gray-100">
             <h2 className="text-xl font-bold mb-4">Activity Chart</h2>
             <ResponsiveContainer width="100%" height={150}>
               <LineChart data={activityData}>
@@ -391,18 +386,18 @@ const Profile = () => {
             </ResponsiveContainer>
           </div>
 
-          <div className="bg-white p-6 rounded shadow">
+          <div className="bg-white p-6 rounded shadow dark:bg-gray-800 dark:text-gray-100">
             <h2 className="text-xl font-bold mb-4">Your Polls</h2>
             <div className="flex flex-col md:flex-row gap-2 mb-4">
               <input
                 type="text"
                 placeholder="Search question..."
-                className="border px-3 py-2 rounded w-full md:w-1/2"
+                className="border px-3 py-2 rounded w-full md:w-1/2 dark:bg-gray-800 dark:text-gray-100"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
               <select
-                className="border px-3 py-2 rounded w-full md:w-1/4"
+                className="border px-3 py-2 rounded w-full md:w-1/4 dark:bg-gray-800 dark:text-gray-100"
                 value={sortOrder}
                 onChange={(e) => setSortOrder(e.target.value as "asc" | "desc")}
               >
@@ -416,7 +411,7 @@ const Profile = () => {
                 {[1, 2, 3, 4].map((_, i) => (
                   <div
                     key={i}
-                    className="p-4 bg-gray-100 animate-pulse rounded shadow space-y-2"
+                    className="p-4 bg-gray-100 animate-pulse rounded shadow space-y-2 dark:bg-gray-700 dark:text-gray-100"
                   >
                     <div className="h-4 bg-gray-300 rounded w-1/2"></div>
                     <div className="h-3 bg-gray-300 rounded w-1/3"></div>
@@ -431,7 +426,7 @@ const Profile = () => {
                 {paginatedPolls.map((poll) => (
                   <motion.div
                     key={poll.id}
-                    className="p-4 bg-gray-50 hover:bg-gray-100 rounded shadow transition"
+                    className="p-4 bg-gray-50 hover:bg-gray-100 rounded shadow transition dark:bg-gray-700 dark:hover:bg-gray-600"
                     whileHover={{ scale: 1.01 }}
                   >
                     <div className="flex flex-col md:flex-row md:justify-between md:items-center">
@@ -481,7 +476,7 @@ const Profile = () => {
                     className={`px-3 py-1 rounded ${
                       currentPage === i + 1
                         ? "bg-blue-600 text-white"
-                        : "bg-gray-200 text-gray-700"
+                        : "bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-100"
                     }`}
                     onClick={() => setCurrentPage(i + 1)}
                   >

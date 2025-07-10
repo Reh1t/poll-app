@@ -114,13 +114,13 @@ const Navbar = () => {
         </div>
 
         {/* Center (desktop only) */}
-        <div className="hidden sm:flex w-1/3 justify-center gap-6">
+        <div className="hidden sm:flex w-1/3 justify-center gap-6 ">
           {["/", "/profile"].map((path) => (
             <Link
               key={path}
               to={path}
-              className={`text-sm font-medium ${
-                location.pathname === path ? "text-blue-600" : "text-gray-700"
+              className={`text-sm font-medium  ${
+                location.pathname === path ? "text-blue-600 " : "text-gray-700 dark:text-gray-200"
               }`}
             >
               {path === "/" ? "Home" : "Profile"}
@@ -167,13 +167,13 @@ const Navbar = () => {
             </Link>
           )}
         </div>
-        {/* <button
+        <button
           aria-label="Toggle dark mode"
           onClick={toggle}
           className="ml-4 text-gray-700 dark:text-gray-200"
         >
           {theme === "light" ? <FiMoon /> : <FiSun />}
-        </button> */}
+        </button>
       </div>
 
       {/* Mobile dropdown */}

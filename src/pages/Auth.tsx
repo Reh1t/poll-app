@@ -51,21 +51,21 @@ const Auth = () => {
   };
 
   return (
-    <div className="flex justify-center items-center min-h-screen bg-gray-100 px-4">
-      <div className="bg-white shadow-lg rounded-xl p-8 max-w-md w-full">
-        <h2 className="text-2xl font-bold mb-6 text-center text-gray-800">
+    <div className="flex justify-center items-center min-h-screen bg-gray-100 px-4 dark:bg-background-dark">
+      <div className="bg-white shadow-lg rounded-xl p-8 max-w-md w-full dark:bg-background-dark">
+        <h2 className="text-2xl font-bold mb-6 text-center text-gray-800 dark:text-gray-200">
           {isLogin ? "Login to Pollify" : "Register to Get Started"}
         </h2>
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
           {/* Email */}
           <div>
-            <label className="block text-sm font-medium mb-1 text-gray-700">
+            <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-200">
               Email
             </label>
             <input
               type="email"
-              className="w-full border rounded px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+              className="w-full border rounded px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none dark:bg-background-dark"
               {...register("email", { required: "Email is required" })}
             />
             {errors.email && (
@@ -77,12 +77,12 @@ const Auth = () => {
 
           {/* Password */}
           <div>
-            <label className="block text-sm font-medium mb-1 text-gray-700">
+            <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-200">
               Password
             </label>
             <input
               type="password"
-              className="w-full border rounded px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+              className="w-full border rounded px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none dark:bg-background-dark"
               {...register("password", { required: "Password is required" })}
             />
             {errors.password && (
@@ -107,11 +107,11 @@ const Auth = () => {
         </form>
 
         {/* Toggle */}
-        <p className="text-center text-sm mt-4 text-gray-600">
+        <p className="text-center text-sm mt-4 text-gray-600 dark:text-gray-200">
           {isLogin ? "Don't have an account?" : "Already have an account?"}{" "}
           <button
             type="button"
-            className="text-blue-600 hover:underline font-medium"
+            className="text-blue-600 hover:underline font-medium dark:text-blue-200"
             onClick={() => setIsLogin(!isLogin)}
           >
             {isLogin ? "Register" : "Login"}

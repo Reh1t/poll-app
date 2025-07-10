@@ -81,13 +81,13 @@ const CreatePoll = () => {
   };
 
   return (
-    <div className="max-w-2xl mx-auto px-4 py-8">
-      <div className="bg-white border rounded-xl shadow-md p-6 space-y-6 ring-2 ring-gray-100">
-        <h1 className="text-2xl font-bold text-center text-gray-800">
+    <div className="max-w-2xl mx-auto px-4 py-8 h-screen">
+      <div className="bg-white border rounded-xl shadow-md p-6 space-y-6 ring-2 ring-gray-100 dark:bg-background-dark dark:text-gray-200" >
+        <h1 className="text-2xl font-bold text-center text-gray-800 dark:text-gray-200">
           Create a Poll
         </h1>
 
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-6 dark:text-gray-700">
           {/* Question */}
           <div>
             <input
@@ -95,7 +95,7 @@ const CreatePoll = () => {
                 required: "Poll question is required",
               })}
               placeholder="Type your question here..."
-              className="w-full border border-gray-300 rounded-md px-4 py-2 text-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
+              className="w-full border border-gray-300 rounded-md px-4 py-2 text-lg focus:ring-2 focus:ring-blue-500 focus:outline-none dark:bg-background-dark dark:text-gray-200"
             />
             {errors.question && (
               <p className="text-red-500 text-sm mt-1">
@@ -113,7 +113,7 @@ const CreatePoll = () => {
                     required: "Option cannot be empty",
                   })}
                   placeholder={`Option ${index + 1}`}
-                  className="flex-1 border border-gray-300 rounded-md px-4 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  className="flex-1 border border-gray-300 rounded-md px-4 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none dark:bg-background-dark dark:text-gray-200"
                 />
                 {fields.length > 2 && (
                   <button
@@ -138,7 +138,7 @@ const CreatePoll = () => {
           </div>
 
           {/* Advanced Settings */}
-          <div className="border border-gray-300 rounded-md p-4 bg-gray-50 space-y-3">
+          <div className="border border-gray-300 rounded-md p-4 bg-gray-50 space-y-3 dark:bg-background-dark dark:text-gray-200">
             <label className="flex items-center gap-2 text-sm">
               <input type="checkbox" {...register("allowMultiple")} />
               Allow multiple choices
@@ -152,13 +152,13 @@ const CreatePoll = () => {
               Allow vote changes
             </label>
             <div className="pt-2">
-              <label className="block text-sm mb-1 font-medium text-gray-700">
+              <label className="block text-sm mb-1 font-medium text-gray-700 dark:text-gray-200">
                 End Time (optional)
               </label>
               <input
-                type="datetime-local"
+                type="datetime-local" 
                 {...register("endsAt")}
-                className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none  dark:bg-background-dark dark:text-gray-200"
               />
             </div>
           </div>
@@ -168,7 +168,7 @@ const CreatePoll = () => {
             <button
               type="submit"
               disabled={isSubmitting}
-              className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-md font-semibold shadow transition"
+              className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-md font-semibold shadow transition dark:bg-blue-700 dark:hover:bg-blue-800"
             >
               {isSubmitting ? "Creating..." : "Create Poll"}
             </button>
