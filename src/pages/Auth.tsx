@@ -25,63 +25,92 @@ const Auth = () => {
 
     toast.loading(`${action}...`, { id: "auth" });
 
-    let result;
-    if (isLogin) {
-      result = await supabase.auth.signInWithPassword({ email, password });
-    } else {
-      result = await supabase.auth.signUp({ email, password });
-    }
+    try {
+      const response = isLogin
+        ? await supabase.auth.signInWithPassword({ email, password })
+        : await supabase.auth.signUp({ email, password });
 
-    const { error } = result;
+      const { error } = response;
 
-    if (error) {
-      toast.error(error.message, { id: "auth" });
-    } else {
-      toast.success(`${isLogin ? "Logged in" : "Registered"} successfully!`, { id: "auth" });
-      navigate("/"); // Redirect to homepage or dashboard
+      if (error) {
+        toast.error(error.message, { id: "auth" });
+      } else {
+        if (isLogin) {
+          toast.success("Logged in successfully!", { id: "auth" });
+          navigate("/");
+        } else {
+          toast.success(
+            "Registration successful! Please check your email to confirm.",
+            { id: "auth" }
+          );
+        }
+      }
+    } catch (error: any) {
+      toast.error(error.message || "Something went wrong", { id: "auth" });
     }
   };
 
   return (
     <div className="flex justify-center items-center min-h-screen bg-gray-100 px-4">
       <div className="bg-white shadow-lg rounded-xl p-8 max-w-md w-full">
-        <h2 className="text-2xl font-bold mb-6 text-center">
-          {isLogin ? "Login to Poll App" : "Register to Get Started"}
+        <h2 className="text-2xl font-bold mb-6 text-center text-gray-800">
+          {isLogin ? "Login to Pollify" : "Register to Get Started"}
         </h2>
 
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
+          {/* Email */}
           <div>
-            <label className="block text-sm font-medium mb-1">Email</label>
+            <label className="block text-sm font-medium mb-1 text-gray-700">
+              Email
+            </label>
             <input
               type="email"
-              className="w-full border rounded px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full border rounded px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none"
               {...register("email", { required: "Email is required" })}
             />
-            {errors.email && <p className="text-red-500 text-sm mt-1">{errors.email.message}</p>}
+            {errors.email && (
+              <p className="text-red-500 text-sm mt-1">
+                {errors.email.message}
+              </p>
+            )}
           </div>
 
+          {/* Password */}
           <div>
-            <label className="block text-sm font-medium mb-1">Password</label>
+            <label className="block text-sm font-medium mb-1 text-gray-700">
+              Password
+            </label>
             <input
               type="password"
-              className="w-full border rounded px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full border rounded px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none"
               {...register("password", { required: "Password is required" })}
             />
-            {errors.password && <p className="text-red-500 text-sm mt-1">{errors.password.message}</p>}
+            {errors.password && (
+              <p className="text-red-500 text-sm mt-1">
+                {errors.password.message}
+              </p>
+            )}
           </div>
 
+          {/* Submit */}
           <button
             type="submit"
             disabled={isSubmitting}
-            className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded transition"
+            className={`w-full py-2 px-4 rounded text-white font-semibold transition ${
+              isSubmitting
+                ? "bg-blue-400 cursor-not-allowed"
+                : "bg-blue-600 hover:bg-blue-700"
+            }`}
           >
             {isLogin ? "Login" : "Register"}
           </button>
         </form>
 
-        <p className="text-center text-sm mt-4">
+        {/* Toggle */}
+        <p className="text-center text-sm mt-4 text-gray-600">
           {isLogin ? "Don't have an account?" : "Already have an account?"}{" "}
           <button
+            type="button"
             className="text-blue-600 hover:underline font-medium"
             onClick={() => setIsLogin(!isLogin)}
           >

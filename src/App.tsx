@@ -22,7 +22,7 @@ function App() {
       />
       <Navbar />
       <Routes>
-        <Route path="/login" element={<Auth />} />
+        <Route path="/auth" element={<Auth />} />
         <Route path="/" element={<PollList />} />
         <Route path="/poll/:id" element={<PollDetail />} />
         <Route path="/poll/:id/results" element={<PollResultPage />} />

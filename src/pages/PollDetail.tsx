@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "../app/supabase";
 import toast from "react-hot-toast";
+import { QRCodeCanvas } from "qrcode.react";
 
 type Poll = {
   id: string;
@@ -24,43 +25,49 @@ const PollDetail = () => {
   const [loading, setLoading] = useState(true);
   const [hasVoted, setHasVoted] = useState(false);
   const [viewersCount, setViewersCount] = useState(0);
+  const [showQR, setShowQR] = useState(false);
 
   const voteKey = `poll_${pollId}_voted`;
+  const isExpired = poll?.ends_at
+    ? new Date(poll.ends_at).getTime() < new Date().getTime()
+    : false;
+  const pollUrl = `${window.location.origin}/poll/${pollId}`;
 
   useEffect(() => {
     const fetchPoll = async () => {
-      const [{ data: pollData }, { data: user }] = await Promise.all([
-        supabase.from("polls").select("*").eq("id", pollId).single(),
-        supabase.auth.getUser(),
-      ]);
+      try {
+        const [{ data: pollData }, { data: user }] = await Promise.all([
+          supabase.from("polls").select("*").eq("id", pollId).single(),
+          supabase.auth.getUser(),
+        ]);
 
-      setPoll(pollData);
-      setUserId(user?.user?.id || null);
+        setPoll(pollData);
+        const uid = user?.user?.id || null;
+        setUserId(uid);
 
-      // Check if already voted
-      if (user?.user?.id) {
-        const { data: existingVote } = await supabase
-          .from("votes")
-          .select("id")
-          .eq("poll_id", pollId)
-          .eq("user_id", user.user.id)
-          .single();
+        if (uid) {
+          const { data: existingVote } = await supabase
+            .from("votes")
+            .select("id")
+            .eq("poll_id", pollId)
+            .eq("user_id", uid)
+            .maybeSingle();
 
-        if (existingVote) {
-          setHasVoted(true);
+          if (existingVote) setHasVoted(true);
+        } else {
+          setHasVoted(localStorage.getItem(voteKey) === "true");
         }
-      } else {
-        const voted = localStorage.getItem(voteKey) === "true";
-        setHasVoted(voted);
+      } catch (err) {
+        toast.error("Failed to load poll.");
+        console.error(err);
+      } finally {
+        setLoading(false);
       }
-
-      setLoading(false);
     };
 
     fetchPoll();
   }, [pollId, voteKey]);
 
-  // 👥 Live Viewer Count
   useEffect(() => {
     if (!pollId) return;
 
@@ -69,11 +76,7 @@ const PollDetail = () => {
     const presenceKey = userId || anonId;
 
     const channel = supabase.channel(`presence-poll-${pollId}`, {
-      config: {
-        presence: {
-          key: presenceKey,
-        },
-      },
+      config: { presence: { key: presenceKey } },
     });
 
     channel
@@ -82,26 +85,25 @@ const PollDetail = () => {
         setViewersCount(Object.keys(state).length);
       })
       .subscribe(async (status) => {
-        if (status === "SUBSCRIBED") {
-          await channel.track({});
-        }
+        if (status === "SUBSCRIBED") await channel.track({});
       });
 
     return () => {
-      supabase.removeChannel(channel);
+      const cleanup = async () => {
+        await supabase.removeChannel(channel);
+      };
+      cleanup();
     };
   }, [pollId, userId]);
 
   const handleChange = (option: string) => {
-    if (poll?.settings?.allowMultiple) {
-      setSelected((prev) =>
-        prev.includes(option)
+    setSelected((prev) =>
+      poll?.settings?.allowMultiple
+        ? prev.includes(option)
           ? prev.filter((o) => o !== option)
           : [...prev, option]
-      );
-    } else {
-      setSelected([option]);
-    }
+        : [option]
+    );
   };
 
   const markVoted = () => localStorage.setItem(voteKey, "true");
@@ -110,68 +112,112 @@ const PollDetail = () => {
     e.preventDefault();
 
     if (!pollId || selected.length === 0) {
-      toast.error("Select an option");
+      toast.error("Please select an option");
       return;
     }
 
     if (hasVoted && !poll?.settings?.allowVoteChange) {
-      toast.error("You've already voted on this poll.");
+      toast.error("You’ve already voted and vote change isn’t allowed.");
       return;
     }
 
-    const { error } = await supabase.from("votes").upsert(
-      {
-        poll_id: pollId,
-        user_id: userId,
-        selected_options: selected,
-      },
-      {
-        onConflict: "poll_id,user_id",
-      }
-    );
+    try {
+      const { error } = await supabase.from("votes").upsert(
+        {
+          poll_id: pollId,
+          user_id: userId,
+          selected_options: selected,
+        },
+        { onConflict: "poll_id,user_id" }
+      );
 
-    if (error) {
-      console.error(error);
-      toast.error("Something went wrong.");
-    } else {
+      if (error) throw error;
+
       if (!userId) markVoted();
+
       toast.success("Vote submitted!");
       navigate(`/poll/${pollId}/results`);
+    } catch (err) {
+      toast.error("Error submitting vote");
+      console.error(err);
     }
   };
 
-  if (loading) return <div className="p-4">Loading...</div>;
-  if (!poll) return <div className="p-4">Poll not found</div>;
+  const handleCopyLinkAndShowQR = () => {
+    navigator.clipboard.writeText(pollUrl);
+    toast.success("Poll link copied!");
+    setShowQR(true);
+  };
 
-  const isExpired = poll.ends_at
-    ? new Date(poll.ends_at).getTime() < new Date().getTime()
-    : false;
+  // 🔄 Skeleton UI while loading
+  if (loading) {
+    return (
+      <div className="max-w-2xl mx-auto p-4 animate-pulse space-y-4">
+        <div className="h-6 bg-gray-300 rounded w-2/3"></div>
+        <div className="h-4 bg-gray-300 rounded w-1/3 mb-2"></div>
+        {[...Array(4)].map((_, i) => (
+          <div key={i} className="h-5 bg-gray-200 rounded w-full"></div>
+        ))}
+        <div className="flex justify-between mt-4">
+          <div className="h-8 bg-gray-300 w-24 rounded"></div>
+          <div className="h-8 bg-gray-400 w-32 rounded"></div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!poll) return <div className="p-4">Poll not found</div>;
 
   return (
     <div className="max-w-2xl mx-auto p-4">
-      <h1 className="text-2xl font-bold mb-4">{poll.question}</h1>
+      <h1 className="text-2xl font-bold mb-2">{poll.question}</h1>
 
-      <div className="text-sm text-gray-500 mb-4">
-        👀 {viewersCount} {viewersCount === 1 ? "person is" : "people are"}{" "}
-        viewing this poll
+      <div className="flex justify-between items-center text-sm text-gray-500 mb-4">
+        <div>
+          👀 {viewersCount} {viewersCount === 1 ? "person is" : "people are"}{" "}
+          viewing this poll
+        </div>
+        <button
+          onClick={handleCopyLinkAndShowQR}
+          className="text-sm px-3 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded"
+        >
+          Share Poll
+        </button>
       </div>
 
+      {/* QR Modal */}
+      {showQR && (
+        <div className="fixed inset-0 z-50 bg-black bg-opacity-40 flex items-center justify-center">
+          <div className="bg-white p-6 rounded-lg shadow-lg text-center relative w-72">
+            <button
+              onClick={() => setShowQR(false)}
+              className="absolute top-2 right-2 text-gray-500 hover:text-gray-800"
+            >
+              ✕
+            </button>
+            <h2 className="text-lg font-semibold mb-3">Scan to Vote</h2>
+            <div className="flex justify-center items-center">
+            <QRCodeCanvas value={pollUrl} size={180}  />
+            </div>
+            <p className="mt-3 text-xs text-gray-500 break-words">{pollUrl}</p>
+          </div>
+        </div>
+      )}
+
+      {/* Voting Form */}
       <form
         onSubmit={onSubmit}
         className="bg-white shadow-lg rounded-xl p-6 space-y-4 border border-gray-200"
       >
         {isExpired && (
-          <div className="text-sm text-red-600 bg-red-100 px-3 py-1 inline-block rounded mt-2 mb-4">
+          <div className="text-sm text-red-600 bg-red-100 px-3 py-1 inline-block rounded mb-4">
             This poll has expired. You can no longer vote.
           </div>
         )}
 
         <div className="space-y-3">
           {poll.options.map((option, idx) => (
-            <label
-              key={idx}
-              className="flex items-center space-x-3 cursor-not-allowed"
-            >
+            <label key={idx} className="flex items-center space-x-3">
               <input
                 type={poll.settings?.allowMultiple ? "checkbox" : "radio"}
                 name="option"
@@ -198,20 +244,7 @@ const PollDetail = () => {
             onClick={() => navigate("/")}
             className="inline-flex items-center text-sm px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-800 rounded transition"
           >
-            <svg
-              className="w-4 h-4 mr-1"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth={2}
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M15 19l-7-7 7-7"
-              />
-            </svg>
-            Back
+            ← Back
           </button>
 
           {!isExpired && (
@@ -219,20 +252,7 @@ const PollDetail = () => {
               type="submit"
               className="inline-flex items-center text-sm px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded transition"
             >
-              Submit
-              <svg
-                className="w-4 h-4 ml-1"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth={2}
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M9 5l7 7-7 7"
-                />
-              </svg>
+              Submit →
             </button>
           )}
         </div>

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { supabase } from "../app/supabase";
 import PollCard from "../components/PollCard";
 import { useDebounce } from "../hooks/useDebounce";
+import toast from "react-hot-toast";
 
 export type Poll = {
   id: string;
@@ -18,69 +19,91 @@ const PAGE_SIZE = 10;
 const PollList = () => {
   const [polls, setPolls] = useState<Poll[]>([]);
   const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState("all"); // all | active | ended | mine
+  const [filter, setFilter] = useState<"all" | "active" | "ended" | "mine">(
+    "all"
+  );
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(false);
+  const [userId, setUserId] = useState<string | null>(null);
+
   const debouncedSearch = useDebounce(search, 500);
+
+  // Get user ID once for "mine" filter
+  useEffect(() => {
+    const fetchUser = async () => {
+      const {
+        data: { user },
+        error,
+      } = await supabase.auth.getUser();
+      if (error) console.error(error);
+      else setUserId(user?.id || null);
+    };
+    fetchUser();
+  }, []);
 
   const fetchPolls = useCallback(async () => {
     setLoading(true);
+    try {
+      let query = supabase
+        .from("polls")
+        .select("*", { count: "exact" })
+        .range((page - 1) * PAGE_SIZE, page * PAGE_SIZE - 1)
+        .order("created_at", { ascending: false });
 
-    let query = supabase
-      .from("polls")
-      .select("*", { count: "exact" })
-      .range((page - 1) * PAGE_SIZE, page * PAGE_SIZE - 1)
-      .order("created_at", { ascending: false });
+      if (debouncedSearch.trim()) {
+        query = query.ilike("question", `%${debouncedSearch}%`);
+      }
 
-    if (debouncedSearch.trim() !== "") {
-      query = query.ilike("question", `%${debouncedSearch}%`);
-    }
-
-    if (filter === "active") {
       const now = new Date().toISOString();
-      query = query.or(`ends_at.gte.${now},ends_at.is.null`);
-    } else if (filter === "ended") {
-      const now = new Date().toISOString();
-      query = query.not("ends_at", "is", null).lte("ends_at", now);
-    } else if (filter === "mine") {
-      const user = (await supabase.auth.getUser()).data.user;
-      if (user) query = query.eq("created_by", user.id);
-    }
 
-    const { data, error } = await query;
+      switch (filter) {
+        case "active":
+          query = query.or(`ends_at.gte.${now},ends_at.is.null`);
+          break;
+        case "ended":
+          query = query.not("ends_at", "is", null).lte("ends_at", now);
+          break;
+        case "mine":
+          if (userId) {
+            query = query.eq("created_by", userId);
+          } else {
+            toast.error("Login required to view your polls");
+            setPolls([]);
+            setLoading(false);
+            return;
+          }
+          break;
+      }
 
-    if (!error) {
+      const { data, error } = await query;
+      if (error) throw error;
+
       setPolls(data || []);
-    } else {
-      console.error(error);
+    } catch (err: any) {
+      toast.error("Failed to load polls.");
+      console.error("Poll fetch error:", err.message || err);
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false);
-  }, [page, debouncedSearch, filter]);
+  }, [debouncedSearch, filter, page, userId]);
 
   useEffect(() => {
     fetchPolls();
-  }, [fetchPolls, page, debouncedSearch, filter]);
+  }, [fetchPolls]);
 
-  // ✅ Realtime: new poll insertion
+  // Real-time insertion listener
   useEffect(() => {
     const channel = supabase
       .channel("realtime-polls")
       .on(
         "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "polls",
-        },
+        { event: "INSERT", schema: "public", table: "polls" },
         (payload) => {
           const newPoll = payload.new as Poll;
-
-          // Only show in list if on first page and not searching or filtering
           if (page === 1 && search.trim() === "" && filter === "all") {
             setPolls((prev) => {
-              const alreadyExists = prev.some((p) => p.id === newPoll.id);
-              if (alreadyExists) return prev;
+              const exists = prev.some((p) => p.id === newPoll.id);
+              if (exists) return prev;
               return [newPoll, ...prev.slice(0, PAGE_SIZE - 1)];
             });
           }
@@ -89,7 +112,10 @@ const PollList = () => {
       .subscribe();
 
     return () => {
-      supabase.removeChannel(channel);
+      const cleanup = async () => {
+        await supabase.removeChannel(channel);
+      };
+      cleanup();
     };
   }, [page, search, filter]);
 
@@ -97,13 +123,16 @@ const PollList = () => {
     <div className="max-w-3xl mx-auto p-4">
       <h1 className="text-2xl font-bold mb-4">Public Polls</h1>
 
-      {/* Search and Filters */}
-      <div className="flex flex-col sm:flex-row sm:items-center gap-2 mb-4">
+      {/* Search & Filter UI */}
+      <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-6">
         <input
           type="text"
           placeholder="Search polls..."
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          onChange={(e) => {
+            setPage(1);
+            setSearch(e.target.value);
+          }}
           className="border px-3 py-2 rounded w-full sm:w-auto"
         />
 
@@ -111,7 +140,7 @@ const PollList = () => {
           value={filter}
           onChange={(e) => {
             setPage(1);
-            setFilter(e.target.value);
+            setFilter(e.target.value as any);
           }}
           className="border px-3 py-2 rounded"
         >
@@ -124,7 +153,11 @@ const PollList = () => {
 
       {/* Polls */}
       {loading ? (
-        <p>Loading...</p>
+        <div className="space-y-3 animate-pulse">
+          {[...Array(4)].map((_, i) => (
+            <div key={i} className="h-16 bg-gray-200 rounded"></div>
+          ))}
+        </div>
       ) : polls.length === 0 ? (
         <p className="text-gray-500 text-center mt-10">No polls found.</p>
       ) : (

@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../app/supabase";
 import { format } from "date-fns";
@@ -11,6 +11,12 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
+import { BiPoll } from "react-icons/bi";
+import { FaVoteYea } from "react-icons/fa";
+import { FiEdit2, FiSave } from "react-icons/fi";
+import { AiOutlineUpload } from "react-icons/ai";
+import toast from "react-hot-toast";
+import imageCompression from "browser-image-compression";
 
 interface Poll {
   id: string;
@@ -25,46 +31,72 @@ interface ProfileData {
   email: string;
   full_name?: string;
   dob?: string;
+  bio?: string;
+  avatar_url?: string;
   created_at: string;
 }
 
 const Profile = () => {
   const [user, setUser] = useState<ProfileData | null>(null);
+  const [editing, setEditing] = useState<{ field: string | null }>({
+    field: null,
+  });
   const [polls, setPolls] = useState<Poll[]>([]);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState("");
-  const [sort, setSort] = useState("recent");
-  const [filter, setFilter] = useState("all");
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
   const [currentPage, setCurrentPage] = useState(1);
-  const [pollToDelete, setPollToDelete] = useState<string | null>(null);
-  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const pollsPerPage = 3;
+
   const navigate = useNavigate();
 
-  const pollsPerPage = 5;
+  const age = useMemo(() => {
+    if (!user?.dob) return null;
+    return Math.floor(
+      (Date.now() - new Date(user.dob).getTime()) /
+        (365.25 * 24 * 60 * 60 * 1000)
+    );
+  }, [user?.dob]);
 
   useEffect(() => {
     const fetchData = async () => {
       const {
-        data: { user },
+        data: { user: sessionUser },
+        error: userError,
       } = await supabase.auth.getUser();
-      if (!user) return;
 
-      const { data: profile } = await supabase
+      if (!sessionUser || userError) return;
+
+      let { data: profile } = await supabase
         .from("profiles")
-        .select("id, email, full_name, dob, created_at")
-        .eq("id", user.id)
-        .single();
+        .select("*")
+        .eq("id", sessionUser.id)
+        .maybeSingle();
+
+      if (!profile) {
+        await supabase
+          .from("profiles")
+          .insert([{ id: sessionUser.id, email: sessionUser.email }]);
+        const { data: newProfile } = await supabase
+          .from("profiles")
+          .select("*")
+          .eq("id", sessionUser.id)
+          .maybeSingle();
+        profile = newProfile;
+      }
 
       const { data: userPolls } = await supabase
         .from("polls")
         .select("*")
-        .eq("created_by", user.id);
+        .eq("created_by", sessionUser.id);
 
       setUser(
         profile || {
-          id: user.id,
-          email: user.email || "",
-          created_at: user.created_at || new Date().toISOString(),
+          id: sessionUser.id,
+          email: sessionUser.email,
+          created_at: sessionUser.created_at,
         }
       );
       setPolls(userPolls || []);
@@ -74,44 +106,60 @@ const Profile = () => {
     fetchData();
   }, []);
 
-  const filteredPolls = useMemo(() => {
-    let sorted = [...polls];
-    if (sort === "recent") {
-      sorted.sort((a, b) => +new Date(b.created_at) - +new Date(a.created_at));
-    } else {
-      sorted.sort((a, b) => +new Date(a.created_at) - +new Date(b.created_at));
-    }
-
-    let filtered = sorted.filter((p) =>
-      p.question.toLowerCase().includes(search.toLowerCase())
-    );
-
-    if (filter === "short") {
-      filtered = filtered.filter((p) => p.options.length <= 3);
-    } else if (filter === "long") {
-      filtered = filtered.filter((p) => p.options.length >= 4);
-    }
-
-    return filtered;
-  }, [polls, sort, search, filter]);
-
-  const totalPages = Math.ceil(filteredPolls.length / pollsPerPage);
-  const startIndex = (currentPage - 1) * pollsPerPage;
-  const paginatedPolls = filteredPolls.slice(
-    startIndex,
-    startIndex + pollsPerPage
-  );
-
-  const activityData = useMemo(() => {
-    const counts: Record<string, number> = {};
-    polls.forEach((poll) => {
-      const day = format(new Date(poll.created_at), "MMM d");
-      counts[day] = (counts[day] || 0) + 1;
+  const uploadAvatar = async (file: File, userId: string) => {
+    const compressedFile = await imageCompression(file, {
+      maxSizeMB: 0.5,
+      maxWidthOrHeight: 512,
+      useWebWorker: true,
     });
-    return Object.entries(counts).map(([day, count]) => ({ day, count }));
-  }, [polls]);
+    const extension = compressedFile.type.split("/")[1];
+    const filePath = `public/${userId}.${extension}`;
 
-  const exportCSV = (poll: Poll) => {
+    const { error } = await supabase.storage
+      .from("avatars")
+      .upload(filePath, compressedFile, { cacheControl: "3600", upsert: true });
+    if (error) throw new Error("Upload failed");
+
+    const {
+      data: { publicUrl },
+    } = supabase.storage.from("avatars").getPublicUrl(filePath);
+    return publicUrl;
+  };
+
+  const handleSave = async () => {
+    if (!user) return;
+    const toastId = toast.loading("Updating profile...");
+    setUploading(true);
+
+    try {
+      if (avatarFile) {
+        const newUrl = await uploadAvatar(avatarFile, user.id);
+        user.avatar_url = newUrl;
+      }
+
+      const { error } = await supabase
+        .from("profiles")
+        .update({
+          full_name: user.full_name,
+          bio: user.bio,
+          dob: user.dob,
+          avatar_url: user.avatar_url,
+        })
+        .eq("id", user.id);
+
+      if (error) throw error;
+
+      toast.success("Profile updated!", { id: toastId });
+      setEditing({ field: null });
+      setAvatarFile(null);
+    } catch (err) {
+      toast.error("Update failed", { id: toastId });
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleExport = (poll: Poll) => {
     const csv = `Question,Options\n"${poll.question}","${poll.options.join(
       ", "
     )}"`;
@@ -122,76 +170,176 @@ const Profile = () => {
     link.click();
   };
 
-  const handleDelete = (pollId: string) => {
-    setPollToDelete(pollId);
-    setShowConfirmModal(true);
+  const handleDelete = async (id: string) => {
+    if (!window.confirm("Are you sure you want to delete this poll?")) return;
+    const { error } = await supabase.from("polls").delete().eq("id", id);
+    if (!error) setPolls((prev) => prev.filter((p) => p.id !== id));
   };
 
-  const confirmDelete = async () => {
-    if (!pollToDelete) return;
-    await supabase.from("polls").delete().eq("id", pollToDelete);
-    setPolls((prev) => prev.filter((p) => p.id !== pollToDelete));
-    setPollToDelete(null);
-    setShowConfirmModal(false);
-  };
+  const activityData = useMemo(() => {
+    const counts: Record<string, number> = {};
+    polls.forEach((poll) => {
+      const day = format(new Date(poll.created_at), "MMM d");
+      counts[day] = (counts[day] || 0) + 1;
+    });
+    return Object.entries(counts).map(([day, count]) => ({ day, count }));
+  }, [polls]);
 
-  const cancelDelete = () => {
-    setPollToDelete(null);
-    setShowConfirmModal(false);
-  };
+  const filteredPolls = useMemo(() => {
+    const sorted = [...polls].sort((a, b) => {
+      const dateA = new Date(a.created_at).getTime();
+      const dateB = new Date(b.created_at).getTime();
+      return sortOrder === "asc" ? dateA - dateB : dateB - dateA;
+    });
+    return sorted.filter((poll) =>
+      poll.question.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  }, [polls, searchTerm, sortOrder]);
+
+  const paginatedPolls = useMemo(() => {
+    const start = (currentPage - 1) * pollsPerPage;
+    return filteredPolls.slice(start, start + pollsPerPage);
+  }, [filteredPolls, currentPage]);
 
   return (
     <div className="p-4 min-h-screen bg-gray-100 text-gray-900">
-      <h1 className="text-3xl font-bold mb-6">Profile</h1>
-
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <div className="md:col-span-1 bg-white shadow rounded p-6 flex flex-col items-center text-center">
+      <div className="max-w-5xl mx-auto grid md:grid-cols-3 gap-6">
+        {/* Profile Card */}
+        <div className="bg-white p-6 rounded shadow md:col-span-1 flex flex-col items-center text-center">
           {loading ? (
             <div className="animate-pulse space-y-4 w-full">
               <div className="h-24 w-24 rounded-full bg-gray-300 mx-auto" />
               <div className="h-4 bg-gray-300 rounded w-3/4 mx-auto" />
               <div className="h-3 bg-gray-300 rounded w-1/2 mx-auto" />
-              <div className="h-3 bg-gray-300 rounded w-2/3 mx-auto" />
             </div>
           ) : (
             <>
-              <img
-                src={`https://api.dicebear.com/7.x/identicon/svg?seed=${user?.email}`}
-                alt="avatar"
-                className="w-24 h-24 rounded-full border"
-              />
-              <h2 className="text-xl font-semibold mt-3">
-                {user?.full_name || "Anonymous User"}
-              </h2>
-              <p className="text-sm text-gray-500">{user?.email}</p>
-              <p className="text-sm text-gray-500">
-                Joined{" "}
-                {user?.created_at
-                  ? format(new Date(user.created_at), "PPP")
-                  : "-"}
-              </p>
-              {user?.dob && (
-                <p className="text-sm text-gray-500">
-                  DOB: {format(new Date(user.dob), "PPP")}
-                </p>
-              )}
-              <p className="text-sm mt-4 text-gray-500">
-                Polls: {polls.length}
-              </p>
-              <p className="text-sm text-gray-500">
-                Total Votes:{" "}
-                {polls.reduce((acc, p) => acc + p.options.length, 0)}
-              </p>
-              <p className="text-sm text-gray-500">Achievements: 2</p>
+              <div className="relative flex flex-col items-center">
+                {/* Avatar Preview */}
+                <img
+                  src={
+                    avatarFile
+                      ? URL.createObjectURL(avatarFile)
+                      : user?.avatar_url ||
+                        `https://api.dicebear.com/7.x/identicon/svg?seed=${user?.email}`
+                  }
+                  alt="avatar"
+                  className="w-24 h-24 rounded-full border object-cover"
+                />
+
+                {/* Upload Button - Hidden if avatarFile is selected */}
+                {!avatarFile && !uploading && (
+                  <label className="absolute bottom-0 right-0 bg-blue-600 p-1 rounded-full cursor-pointer">
+                    <AiOutlineUpload className="text-white text-xs" />
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) =>
+                        setAvatarFile(e.target.files ? e.target.files[0] : null)
+                      }
+                    />
+                  </label>
+                )}
+
+                {/* Spinner */}
+                {uploading && (
+                  <div className="mt-3 text-sm text-blue-600 animate-pulse">
+                    Uploading...
+                  </div>
+                )}
+
+                {/* Save Button - Visible when avatarFile is selected */}
+                {avatarFile && !uploading && (
+                  <>
+                    <button
+                      onClick={handleSave}
+                      className="mt-3 px-3 py-1 bg-green-600 hover:bg-green-700 text-white text-sm rounded"
+                    >
+                      Save Avatar
+                    </button>
+                    <p className="text-xs mt-1 text-gray-500">
+                      New image selected. Click Save to upload.
+                    </p>
+                  </>
+                )}
+              </div>
+              <div className="w-full border border-gray-300 rounded-xl p-6 mt-8 shadow-sm bg-white">
+                {["full_name", "bio", "dob"].map((field, idx) => (
+                  <div
+                    key={field}
+                    className="w-full text-left pb-4 mb-4 border-b last:border-b-0 last:mb-0 last:pb-0 border-dashed border-gray-200"
+                  >
+                    <label className="text-gray-600 text-xs font-medium capitalize block mb-1">
+                      {field === "dob" ? "Age" : field.replace("_", " ")}
+                    </label>
+                    {editing.field === field ? (
+                      <div className="flex items-center gap-2">
+                        <input
+                          type={field === "dob" ? "date" : "text"}
+                          value={(user as any)[field] || ""}
+                          onChange={(e) =>
+                            setUser((prev) =>
+                              prev ? { ...prev, [field]: e.target.value } : prev
+                            )
+                          }
+                          className="border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:outline-none px-3 py-2 rounded-md text-sm w-full"
+                        />
+                        <FiSave
+                          className="cursor-pointer text-green-600 hover:text-green-700"
+                          onClick={handleSave}
+                        />
+                      </div>
+                    ) : (
+                      <div className="flex justify-between items-center">
+                        <p className="text-sm text-gray-800">
+                          {field === "dob"
+                            ? age
+                              ? `${age} years old`
+                              : "Not set"
+                            : (user as any)[field] || "Not set"}
+                        </p>
+                        <FiEdit2
+                          className="text-gray-400 hover:text-blue-500 cursor-pointer"
+                          onClick={() => setEditing({ field })}
+                        />
+                      </div>
+                    )}
+                  </div>
+                ))}
+
+                {/* Metrics */}
+                <div className="mt-6 w-full divide-y divide-gray-200">
+                  <div className="flex items-center justify-between py-2 text-sm">
+                    <div className="flex items-center gap-2 text-gray-500">
+                      <BiPoll className="text-blue-600" />
+                      <span>Polls</span>
+                    </div>
+                    <span className="font-medium text-gray-800">
+                      {polls.length}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between py-2 text-sm">
+                    <div className="flex items-center gap-2 text-gray-500">
+                      <FaVoteYea className="text-green-600" />
+                      <span>Votes</span>
+                    </div>
+                    <span className="font-medium text-gray-800">
+                      {polls.reduce((acc, p) => acc + p.options.length, 0)}
+                    </span>
+                  </div>
+                </div>
+              </div>
             </>
           )}
         </div>
 
         {/* Right Section */}
-        <div className="md:col-span-3 space-y-6">
-          <div className="bg-white shadow rounded p-6">
-            <h2 className="text-xl font-bold mb-2">Activity Chart</h2>
-            <ResponsiveContainer width="100%" height={120}>
+        <div className="md:col-span-2 space-y-6">
+          <div className="bg-white p-6 rounded shadow">
+            <h2 className="text-xl font-bold mb-4">Activity Chart</h2>
+            <ResponsiveContainer width="100%" height={150}>
               <LineChart data={activityData}>
                 <XAxis dataKey="day" />
                 <YAxis allowDecimals={false} />
@@ -207,91 +355,73 @@ const Profile = () => {
             </ResponsiveContainer>
           </div>
 
-          <div className="bg-white shadow rounded p-6">
+          <div className="bg-white p-6 rounded shadow">
             <h2 className="text-xl font-bold mb-4">Your Polls</h2>
-
-            <div className="flex flex-wrap gap-2 mb-4">
+            <div className="flex flex-col md:flex-row gap-2 mb-4">
               <input
                 type="text"
-                placeholder="Search polls"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="px-3 py-1 rounded border w-full sm:w-auto"
+                placeholder="Search question..."
+                className="border px-3 py-2 rounded w-full md:w-1/2"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
               />
               <select
-                value={sort}
-                onChange={(e) => setSort(e.target.value)}
-                className="px-2 py-1 rounded border"
+                className="border px-3 py-2 rounded w-full md:w-1/4"
+                value={sortOrder}
+                onChange={(e) => setSortOrder(e.target.value as "asc" | "desc")}
               >
-                <option value="recent">Most Recent</option>
-                <option value="oldest">Oldest</option>
-              </select>
-              <select
-                value={filter}
-                onChange={(e) => setFilter(e.target.value)}
-                className="px-2 py-1 rounded border"
-              >
-                <option value="all">All</option>
-                <option value="short">Short (≤3 options)</option>
-                <option value="long">Long (≥4 options)</option>
+                <option value="desc">Newest First</option>
+                <option value="asc">Oldest First</option>
               </select>
             </div>
 
             {loading ? (
               <div className="space-y-4">
-                {[...Array(3)].map((_, i) => (
+                {[1, 2, 3, 4].map((_, i) => (
                   <div
                     key={i}
-                    className="h-20 bg-gray-200 rounded animate-pulse"
-                  />
+                    className="p-4 bg-gray-100 animate-pulse rounded shadow space-y-2"
+                  >
+                    <div className="h-4 bg-gray-300 rounded w-1/2"></div>
+                    <div className="h-3 bg-gray-300 rounded w-1/3"></div>
+                    <div className="h-6 w-24 bg-gray-300 rounded"></div>
+                  </div>
                 ))}
               </div>
-            ) : paginatedPolls.length === 0 ? (
-              <p className="text-gray-500 text-center py-8">No polls found.</p>
+            ) : filteredPolls.length === 0 ? (
+              <p className="text-gray-500 text-center py-6">No polls found.</p>
             ) : (
               <div className="space-y-4">
                 {paginatedPolls.map((poll) => (
                   <motion.div
                     key={poll.id}
-                    onClick={() => navigate(`/poll/${poll.id}`)}
-                    className="bg-gray-50 p-4 rounded shadow cursor-pointer hover:bg-gray-100 transition"
+                    className="p-4 bg-gray-50 hover:bg-gray-100 rounded shadow transition"
                     whileHover={{ scale: 1.01 }}
                   >
-                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
-                      <div>
-                        <h3 className="text-lg font-semibold">
-                          {poll.question}
-                        </h3>
+                    <div className="flex flex-col md:flex-row md:justify-between md:items-center">
+                      <div className="mb-2 md:mb-0">
+                        <h3 className="text-md font-medium">{poll.question}</h3>
                         <p className="text-sm text-gray-500">
-                          Created: {format(new Date(poll.created_at), "PPP")} |
-                          Options: {poll.options.length}
+                          Created: {format(new Date(poll.created_at), "PPP")} |{" "}
+                          {poll.options.length} options
                         </p>
                       </div>
-                      <div className="flex flex-wrap gap-2">
+                      <div className="flex gap-2">
                         <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            navigate(`/poll/${poll.id}/results`);
-                          }}
-                          className="px-2 py-1 text-sm bg-purple-500 text-white rounded"
+                          onClick={() => navigate(`/poll/${poll.id}/results`)}
+                          className="px-3 py-1 bg-purple-600 hover:bg-purple-700 text-white text-sm rounded"
                         >
                           Results
                         </button>
                         <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            exportCSV(poll);
-                          }}
-                          className="px-2 py-1 text-sm bg-blue-500 text-white rounded"
+                          onClick={() => handleExport(poll)}
+                          className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded"
                         >
                           Export
                         </button>
                         <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleDelete(poll.id);
-                          }}
-                          className="px-2 py-1 text-sm bg-red-500 text-white rounded"
+                          onClick={() => handleDelete(poll.id)}
+                          className="px-3 py-1 bg-red-600 hover:bg-red-700 text-white text-sm rounded"
                         >
                           Delete
                         </button>
@@ -302,57 +432,28 @@ const Profile = () => {
               </div>
             )}
 
-            {/* Pagination */}
-            {totalPages > 1 && (
-              <div className="mt-6 flex justify-center gap-2">
-                <button
-                  disabled={currentPage === 1}
-                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                  className="px-3 py-1 rounded bg-gray-200 hover:bg-gray-300 disabled:opacity-50"
-                >
-                  Previous
-                </button>
-                <span className="text-sm px-2 py-1">
-                  Page {currentPage} of {totalPages}
-                </span>
-                <button
-                  disabled={currentPage === totalPages}
-                  onClick={() =>
-                    setCurrentPage((p) => Math.min(totalPages, p + 1))
-                  }
-                  className="px-3 py-1 rounded bg-gray-200 hover:bg-gray-300 disabled:opacity-50"
-                >
-                  Next
-                </button>
+            {filteredPolls.length > pollsPerPage && (
+              <div className="flex justify-center mt-4 gap-2">
+                {Array.from({
+                  length: Math.ceil(filteredPolls.length / pollsPerPage),
+                }).map((_, i) => (
+                  <button
+                    key={i}
+                    className={`px-3 py-1 rounded ${
+                      currentPage === i + 1
+                        ? "bg-blue-600 text-white"
+                        : "bg-gray-200 text-gray-700"
+                    }`}
+                    onClick={() => setCurrentPage(i + 1)}
+                  >
+                    {i + 1}
+                  </button>
+                ))}
               </div>
             )}
           </div>
         </div>
       </div>
-
-      {/* Confirmation Modal */}
-      {showConfirmModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
-          <div className="bg-white rounded shadow-lg p-6 w-full max-w-xs mx-auto">
-            <h3 className="text-lg font-semibold mb-4">Confirm Deletion</h3>
-            <p className="mb-6">Are you sure you want to delete this poll?</p>
-            <div className="flex justify-end gap-2">
-              <button
-                onClick={cancelDelete}
-                className="px-4 py-2 rounded bg-gray-200 hover:bg-gray-300"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={confirmDelete}
-                className="px-4 py-2 rounded bg-red-500 text-white hover:bg-red-600"
-              >
-                Delete
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

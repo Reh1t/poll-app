@@ -7,29 +7,39 @@ import { motion } from "framer-motion";
 
 const COLORS = ["#10B981", "#F59E0B", "#8B5CF6", "#EF4444", "#EAB308"];
 
+type Poll = {
+  id: string;
+  question: string;
+  options: string[];
+  created_by: string | null;
+};
+
+type Vote = {
+  selected_options: string[];
+};
+
 const PollResultPage = () => {
   const { id: pollId } = useParams();
   const navigate = useNavigate();
-  const [poll, setPoll] = useState<any>(null);
-  const [votes, setVotes] = useState<any[]>([]);
+
+  const [poll, setPoll] = useState<Poll | null>(null);
+  const [votes, setVotes] = useState<Vote[]>([]);
   const [voteCounts, setVoteCounts] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
-  const [viewMode, setViewMode] = useState("bar");
+  const [viewMode, setViewMode] = useState<"bar" | "pie" | "list">("bar");
   const [viewersCount, setViewersCount] = useState(0);
   const [user, setUser] = useState<any>(null);
   const chartRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    const fetchPollAndUser = async () => {
-      const [{ data: pollData }, { data: authData }] = await Promise.all([
-        supabase.from("polls").select("*").eq("id", pollId).single(),
-        supabase.auth.getUser(),
-      ]);
-      setPoll(pollData);
-      setUser(authData?.user ?? null);
-      setLoading(false);
-    };
-    fetchPollAndUser();
+  const fetchPollAndUser = useCallback(async () => {
+    setLoading(true);
+    const [{ data: pollData }, { data: authData }] = await Promise.all([
+      supabase.from("polls").select("*").eq("id", pollId).single(),
+      supabase.auth.getUser(),
+    ]);
+    setPoll(pollData);
+    setUser(authData?.user ?? null);
+    setLoading(false);
   }, [pollId]);
 
   const fetchVotes = useCallback(async () => {
@@ -41,12 +51,12 @@ const PollResultPage = () => {
   }, [pollId]);
 
   useEffect(() => {
+    fetchPollAndUser();
     fetchVotes();
-  }, [fetchVotes]);
+  }, [fetchPollAndUser, fetchVotes]);
 
   useEffect(() => {
     if (!pollId) return;
-
     const channel = supabase
       .channel(`poll-${pollId}-votes`)
       .on(
@@ -57,10 +67,7 @@ const PollResultPage = () => {
           table: "votes",
           filter: `poll_id=eq.${pollId}`,
         },
-        (payload) => {
-          console.log("🔄 Real-time vote update:", payload);
-          fetchVotes();
-        }
+        fetchVotes
       )
       .subscribe();
 
@@ -72,10 +79,10 @@ const PollResultPage = () => {
   useEffect(() => {
     if (!poll) return;
     const counts: Record<string, number> = {};
-    poll.options.forEach((opt: string) => (counts[opt] = 0));
+    poll.options.forEach((opt) => (counts[opt] = 0));
     votes.forEach((vote) => {
-      vote.selected_options.forEach((opt: string) => {
-        if (counts[opt] !== undefined) counts[opt] += 1;
+      vote.selected_options.forEach((opt) => {
+        if (counts[opt] !== undefined) counts[opt]++;
       });
     });
     setVoteCounts(counts);
@@ -83,7 +90,6 @@ const PollResultPage = () => {
 
   useEffect(() => {
     if (!pollId) return;
-
     const anonId = localStorage.getItem("anon_id") || crypto.randomUUID();
     localStorage.setItem("anon_id", anonId);
     const presenceKey = user?.id || anonId;
@@ -98,9 +104,7 @@ const PollResultPage = () => {
         setViewersCount(Object.keys(state).length);
       })
       .subscribe(async (status) => {
-        if (status === "SUBSCRIBED") {
-          await channel.track({});
-        }
+        if (status === "SUBSCRIBED") await channel.track({});
       });
 
     return () => {
@@ -108,23 +112,16 @@ const PollResultPage = () => {
     };
   }, [pollId, user]);
 
-  if (loading) return <div className="p-4">Loading results...</div>;
-  if (!poll) return <div className="p-4">Poll not found</div>;
-
   const totalVotes = votes.reduce(
     (acc, v) => acc + v.selected_options.length,
     0
   );
 
-  const handleRefresh = () => fetchVotes();
-  const handleBack = () => navigate("/");
-
-  const chartData: { name: string; value: number }[] = poll.options.map(
-    (option: string) => ({
+  const chartData =
+    poll?.options.map((option) => ({
       name: option,
       value: voteCounts[option] || 0,
-    })
-  );
+    })) || [];
 
   const handleExportImage = async () => {
     if (!chartRef.current) return;
@@ -137,21 +134,44 @@ const PollResultPage = () => {
 
   const handleExportCSV = () => {
     const csvHeader = "Option,Votes,Percent\n";
-    const csvRows = chartData.map((item) => {
+    const csvRows = chartData.map(({ name, value }) => {
       const percent =
-        totalVotes > 0
-          ? ((item.value / totalVotes) * 100).toFixed(2) + "%"
-          : "0%";
-      return `${item.name},${item.value},${percent}`;
+        totalVotes > 0 ? ((value / totalVotes) * 100).toFixed(2) + "%" : "0%";
+      return `${name},${value},${percent}`;
     });
-    const csv = csvHeader + csvRows.join("\n");
-
-    const blob = new Blob([csv], { type: "text/csv" });
+    const blob = new Blob([csvHeader + csvRows.join("\n")], {
+      type: "text/csv",
+    });
     const link = document.createElement("a");
     link.href = URL.createObjectURL(blob);
     link.download = `poll_${pollId}_results.csv`;
     link.click();
   };
+
+  const handleBack = () => navigate("/");
+
+  if (loading) {
+    return (
+      <div className="max-w-2xl mx-auto p-4 space-y-6 animate-pulse">
+        <div className="h-6 w-3/4 bg-gray-300 rounded" />
+        <div className="h-4 w-1/3 bg-gray-200 rounded" />
+        <div className="flex justify-center gap-2">
+          {[...Array(3)].map((_, i) => (
+            <div key={i} className="w-20 h-8 bg-gray-300 rounded" />
+          ))}
+        </div>
+        <div className="h-48 bg-gray-200 rounded" />
+        <div className="h-4 w-24 bg-gray-300 mx-auto rounded" />
+        <div className="flex justify-center gap-3">
+          {[...Array(4)].map((_, i) => (
+            <div key={i} className="w-24 h-8 bg-gray-300 rounded" />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (!poll) return <div className="p-4 text-red-500">Poll not found</div>;
 
   return (
     <div className="max-w-2xl mx-auto p-4">
@@ -167,7 +187,7 @@ const PollResultPage = () => {
         {["bar", "pie", "list"].map((mode) => (
           <button
             key={mode}
-            onClick={() => setViewMode(mode)}
+            onClick={() => setViewMode(mode as typeof viewMode)}
             className={`px-3 py-1 rounded text-sm ${
               viewMode === mode ? "bg-blue-600 text-white" : "bg-gray-200"
             }`}
@@ -179,10 +199,9 @@ const PollResultPage = () => {
 
       <div ref={chartRef} className="space-y-6 transition-all">
         {viewMode === "bar" &&
-          poll.options.map((option: string, idx: number) => {
-            const count = voteCounts[option] || 0;
+          chartData.map(({ name, value }, idx) => {
             const percent =
-              totalVotes > 0 ? ((count / totalVotes) * 100).toFixed(2) : "0.00";
+              totalVotes > 0 ? ((value / totalVotes) * 100).toFixed(2) : "0.00";
             const barColors = [
               "bg-green-500",
               "bg-orange-400",
@@ -193,14 +212,14 @@ const PollResultPage = () => {
             return (
               <div key={idx}>
                 <div className="flex justify-between text-sm text-gray-700 mb-1">
-                  <span>{option}</span>
+                  <span>{name}</span>
                   <motion.span
-                    key={count}
+                    key={value}
                     initial={{ scale: 1 }}
                     animate={{ scale: [1, 1.15, 1] }}
                     transition={{ duration: 0.4 }}
                   >
-                    {percent}% ({count} vote{count !== 1 && "s"})
+                    {percent}% ({value} vote{value !== 1 && "s"})
                   </motion.span>
                 </div>
                 <div className="w-full bg-gray-200 h-4 rounded">
@@ -221,21 +240,16 @@ const PollResultPage = () => {
           <ResponsiveContainer width="100%" height={250}>
             <PieChart>
               <Pie
-                isAnimationActive={true}
-                animationDuration={600}
                 data={chartData}
                 cx="50%"
                 cy="50%"
                 labelLine={false}
-                label={({ name, value }) => `${name}: ${value}`}
                 outerRadius={100}
+                label={({ name, value }) => `${name}: ${value}`}
                 dataKey="value"
               >
-                {chartData.map((_, index: number) => (
-                  <Cell
-                    key={`cell-${index}`}
-                    fill={COLORS[index % COLORS.length]}
-                  />
+                {chartData.map((_, index) => (
+                  <Cell key={index} fill={COLORS[index % COLORS.length]} />
                 ))}
               </Pie>
               <Tooltip />
@@ -245,24 +259,24 @@ const PollResultPage = () => {
 
         {viewMode === "list" && (
           <ul className="space-y-2">
-            {chartData.map((item, idx) => {
+            {chartData.map(({ name, value }, idx) => {
               const percent =
                 totalVotes > 0
-                  ? ((Number(item.value) / totalVotes) * 100).toFixed(2)
+                  ? ((value / totalVotes) * 100).toFixed(2)
                   : "0.00";
               return (
                 <li
                   key={idx}
                   className="flex justify-between border px-3 py-2 rounded text-sm"
                 >
-                  <span>{item.name}</span>
+                  <span>{name}</span>
                   <motion.span
-                    key={item.value}
+                    key={value}
                     initial={{ scale: 1 }}
                     animate={{ scale: [1, 1.15, 1] }}
                     transition={{ duration: 0.4 }}
                   >
-                    {item.value} vote{item.value !== 1 && "s"} ({percent}%)
+                    {value} vote{value !== 1 && "s"} ({percent}%)
                   </motion.span>
                 </li>
               );
@@ -278,7 +292,7 @@ const PollResultPage = () => {
       {/* Controls */}
       <div className="flex justify-center gap-4 mt-6">
         <button
-          onClick={handleRefresh}
+          onClick={fetchVotes}
           className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-sm rounded"
         >
           Refresh Results
